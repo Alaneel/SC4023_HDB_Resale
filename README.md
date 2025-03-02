@@ -1,11 +1,11 @@
-# Enhanced HDB Resale Price Analysis System
+# Enhanced HDB Resale Price Analysis System with Unified Benchmarking
 
 ## Background
 
 This project implements an optimized column-oriented data management system for analyzing Housing and Development Board (HDB) resale flat transactions in Singapore from 2014 to 2023. The system processes historical transaction records to compute various statistics including minimum price, average price, standard deviation of price, and minimum price per square meter for flats meeting specific criteria.
 
 The analysis is performed based on individual matriculation numbers, where different digits in the matriculation number determine the parameters for data analysis:
-- Last digit: Determines the year (2010 + last digit)
+- Last digit: Determines the year (2010 + last digit or 2020 + last digit for digits 0-3)
 - Second last digit: Determines the starting month (0 represents October)
 - Third last digit: Determines the target town according to a predefined mapping
 
@@ -28,7 +28,13 @@ This enhanced version includes several optimizations to improve performance and 
    - Result caching with LRU eviction policy
    - Optional data compression
 
-4. **Usability Improvements**
+4. **Unified Benchmarking Framework**
+   - Standardized performance measurement across implementations
+   - Detailed metrics collection at each processing stage
+   - Consistent reporting format for direct comparisons
+   - Support for both console and file-based reporting
+
+5. **Usability Improvements**
    - Automatic detection of optimal processing strategy based on system resources
    - Enhanced command-line interface with additional options
    - Detailed performance monitoring and reporting
@@ -44,17 +50,21 @@ The enhanced project follows a standard Maven directory structure:
 ├── pom.xml                     # Maven configuration file
 ├── result                      # Output directory for analysis results
 │   └── ScanResult_*.csv
+├── benchmark                   # Output directory for benchmark reports
+│   └── benchmark_*.txt
 └── src                         # Source code directory
     └── main
         └── java
             └── org
                 └── resale
-                    ├── ColumnStore.java           # Original implementation
-                    ├── EnhancedColumnStore.java   # Optimized implementation
-                    ├── Main.java                  # Original entry point
-                    ├── EnhancedMain.java          # Enhanced entry point
-                    ├── QueryResult.java           # Query result handling
-                    └── StatisticType.java         # Statistical calculation types
+                    ├── BenchmarkReporter.java   # Unified benchmarking framework
+                    ├── ColumnStore.java         # Original implementation
+                    ├── EnhancedColumnStore.java # Optimized implementation
+                    ├── Main.java                # Original entry point
+                    ├── EnhancedMain.java        # Enhanced entry point
+                    ├── UnifiedMain.java         # Unified benchmark entry point
+                    ├── QueryResult.java         # Query result handling
+                    └── StatisticType.java       # Statistical calculation types
 ```
 
 ## Technologies Used
@@ -111,6 +121,23 @@ mvn exec:java -Dexec.mainClass="org.resale.EnhancedMain" -Dexec.arguments="U2211
 mvn exec:java -Dexec.mainClass="org.resale.EnhancedMain" -Dexec.arguments="U2211641C --min-area 90.0"
 ```
 
+## Running Benchmarks with the Unified Framework
+
+The unified benchmarking framework allows for consistent performance measurement across both the original and enhanced implementations. To run benchmarks, use the UnifiedMain class:
+
+```bash
+# Run benchmark on the original ColumnStore implementation
+mvn exec:java -Dexec.mainClass="org.resale.UnifiedMain" -Dexec.arguments="ColumnStore,YOUR_MATRIC_NUMBER"
+
+# Run benchmark on the enhanced implementation
+mvn exec:java -Dexec.mainClass="org.resale.UnifiedMain" -Dexec.arguments="EnhancedColumnStore,YOUR_MATRIC_NUMBER"
+
+# Run enhanced implementation with compression
+mvn exec:java -Dexec.mainClass="org.resale.UnifiedMain" -Dexec.arguments="EnhancedColumnStore,YOUR_MATRIC_NUMBER --compress"
+```
+
+Benchmark reports are generated in the `benchmark` directory with detailed timing and performance metrics for each implementation stage.
+
 ## Performance Comparison
 
 The enhanced implementation significantly outperforms the original in terms of both speed and memory efficiency:
@@ -157,6 +184,7 @@ Key implementation details:
 2. **Dictionary encoding** replaces string values with integer codes to reduce memory usage
 3. **Parallel processing** leverages Java's Stream API for multi-threaded calculations
 4. **Memory mapping** uses Java NIO's FileChannel and MappedByteBuffer for efficient file access
+5. **Unified benchmarking** provides standardized performance measurement across implementations
 
 ## Error Handling
 

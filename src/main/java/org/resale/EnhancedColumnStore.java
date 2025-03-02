@@ -8,12 +8,7 @@ import java.nio.channels.FileChannel;
 import java.time.YearMonth;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ForkJoinPool;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.zip.Deflater;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 /**
  * EnhancedColumnStore.java
@@ -26,6 +21,8 @@ import java.util.zip.GZIPOutputStream;
  * - Caching mechanism for query results
  * - Parallel processing capabilities
  * - Memory-mapped file support for large datasets
+ *
+ * This version uses the unified benchmarking framework.
  */
 public class EnhancedColumnStore {
     // Configuration parameters
@@ -38,6 +35,9 @@ public class EnhancedColumnStore {
     private List<List<Integer>> townChunks;  // Dictionary-encoded towns
     private List<List<Double>> floorAreaChunks; // Floor areas in square meters
     private List<List<Double>> resalePriceChunks; // Resale prices in SGD
+
+    // Benchmarking instance
+    private final BenchmarkReporter benchmark;
 
     // Dictionaries for encoding/decoding
     @Getter private final Map<String, Integer> monthDictionary = new HashMap<>();
@@ -63,6 +63,16 @@ public class EnhancedColumnStore {
      * Constructor initializes data structures for column storage
      */
     public EnhancedColumnStore() {
+        this(new BenchmarkReporter("EnhancedColumnStore"));
+    }
+
+    /**
+     * Constructor with custom benchmark reporter
+     */
+    public EnhancedColumnStore(BenchmarkReporter benchmark) {
+        this.benchmark = benchmark;
+        benchmark.startTiming(BenchmarkReporter.Stage.INITIALIZATION);
+
         this.monthChunks = new ArrayList<>();
         this.townChunks = new ArrayList<>();
         this.floorAreaChunks = new ArrayList<>();
@@ -70,6 +80,8 @@ public class EnhancedColumnStore {
         this.townBitmapIndex = new HashMap<>();
         this.monthRangeIndex = new TreeMap<>();
         this.floorAreaRangeIndex = new TreeMap<>();
+
+        benchmark.stopTiming(BenchmarkReporter.Stage.INITIALIZATION);
     }
 
     /**
@@ -81,16 +93,35 @@ public class EnhancedColumnStore {
      * @throws IOException If there are issues reading the file
      */
     public void loadData(String filepath, boolean useMemoryMapping) throws IOException {
+        benchmark.startTiming(BenchmarkReporter.Stage.DATA_LOADING);
+
         this.usesMemoryMapping = useMemoryMapping;
+        benchmark.recordMetric("Memory Mapping", useMemoryMapping ? "Enabled" : "Disabled");
 
         if (useMemoryMapping) {
+            benchmark.startTiming("Memory-Mapped Loading");
             loadWithMemoryMapping(filepath);
+            benchmark.stopTiming("Memory-Mapped Loading");
         } else {
+            benchmark.startTiming("Buffered Loading");
             loadWithBufferedReader(filepath);
+            benchmark.stopTiming("Buffered Loading");
         }
 
         // Build indexes after loading data
+        benchmark.startTiming("Index Building");
         buildIndexes();
+        benchmark.stopTiming("Index Building");
+
+        // Record data loading metrics
+        benchmark.recordMetric("Total Rows", totalRows);
+        benchmark.recordMetric("Unique Towns", townDictionary.size());
+        benchmark.recordMetric("Unique Months", monthDictionary.size());
+        benchmark.recordMetric("Chunks Created", monthChunks.size());
+        benchmark.recordMetric("Avg Rows Per Chunk", totalRows / Math.max(1, monthChunks.size()));
+
+        long loadingTime = benchmark.stopTiming(BenchmarkReporter.Stage.DATA_LOADING);
+        System.out.println("Data loading completed in " + loadingTime + " ms");
     }
 
     /**
@@ -105,7 +136,10 @@ public class EnhancedColumnStore {
 
         try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
             String line = br.readLine(); // Skip header row
+            System.out.println("Header: " + line);
+
             int rowCount = 0;
+            int batchSize = 100000;
 
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
@@ -149,6 +183,11 @@ public class EnhancedColumnStore {
                     floorAreaChunk = new ArrayList<>(CHUNK_SIZE);
                     resalePriceChunk = new ArrayList<>(CHUNK_SIZE);
                 }
+
+                // Print progress for large files
+                if (rowCount % batchSize == 0) {
+                    benchmark.recordMetric("Rows Processed", rowCount);
+                }
             }
 
             // Add the last partial chunk if it's not empty
@@ -169,6 +208,7 @@ public class EnhancedColumnStore {
     private void loadWithMemoryMapping(String filepath) throws IOException {
         File file = new File(filepath);
         long fileSize = file.length();
+        benchmark.recordMetric("File Size", fileSize + " bytes");
 
         try (RandomAccessFile raf = new RandomAccessFile(file, "r");
              FileChannel channel = raf.getChannel()) {
@@ -186,6 +226,7 @@ public class EnhancedColumnStore {
             StringBuilder line = new StringBuilder();
             boolean isFirstLine = true;
             int rowCount = 0;
+            int batchSize = 100000;
 
             while (buffer.hasRemaining()) {
                 char c = (char) buffer.get();
@@ -194,6 +235,7 @@ public class EnhancedColumnStore {
                     // Skip header
                     if (isFirstLine) {
                         isFirstLine = false;
+                        System.out.println("Header: " + line.toString());
                         line.setLength(0);
                         continue;
                     }
@@ -240,6 +282,11 @@ public class EnhancedColumnStore {
                         resalePriceChunk = new ArrayList<>(CHUNK_SIZE);
                     }
 
+                    // Print progress for large files
+                    if (rowCount % batchSize == 0) {
+                        benchmark.recordMetric("Rows Processed", rowCount);
+                    }
+
                     line.setLength(0);
                 } else {
                     line.append(c);
@@ -262,7 +309,11 @@ public class EnhancedColumnStore {
      * Builds bitmap and range indexes for efficient querying
      */
     private void buildIndexes() {
+        // Track index building time
+        benchmark.startTiming(BenchmarkReporter.Stage.INDEX_BUILDING);
+
         // Build town bitmap index
+        benchmark.startTiming("Town Bitmap Index");
         for (String town : townDictionary.keySet()) {
             BitSet bitSet = new BitSet(totalRows);
             int townCode = townDictionary.get(town);
@@ -280,8 +331,11 @@ public class EnhancedColumnStore {
 
             townBitmapIndex.put(town, bitSet);
         }
+        benchmark.stopTiming("Town Bitmap Index");
+        benchmark.recordMetric("Town Bitmap Index Size", townBitmapIndex.size());
 
-        // Build month range index (for selected month values)
+        // Build month range index
+        benchmark.startTiming("Month Range Index");
         Set<String> uniqueMonths = new HashSet<>(monthDictionary.keySet());
         for (String month : uniqueMonths) {
             BitSet bitSet = new BitSet(totalRows);
@@ -300,9 +354,11 @@ public class EnhancedColumnStore {
 
             monthRangeIndex.put(month, bitSet);
         }
+        benchmark.stopTiming("Month Range Index");
+        benchmark.recordMetric("Month Range Index Size", monthRangeIndex.size());
 
-        // Build floor area range index (for efficient minimum area filtering)
-        // We'll index common thresholds rather than every value
+        // Build floor area range index
+        benchmark.startTiming("Floor Area Range Index");
         double[] thresholds = {60.0, 70.0, 80.0, 90.0, 100.0, 120.0, 150.0};
 
         for (double threshold : thresholds) {
@@ -321,6 +377,12 @@ public class EnhancedColumnStore {
 
             floorAreaRangeIndex.put(threshold, bitSet);
         }
+        benchmark.stopTiming("Floor Area Range Index");
+        benchmark.recordMetric("Floor Area Range Index Size", floorAreaRangeIndex.size());
+
+        // Record overall index building time
+        long indexTime = benchmark.stopTiming(BenchmarkReporter.Stage.INDEX_BUILDING);
+        System.out.println("Index building completed in " + indexTime + " ms");
     }
 
     /**
@@ -331,6 +393,7 @@ public class EnhancedColumnStore {
             return; // Already compressed
         }
 
+        benchmark.startTiming("Data Compression");
         try {
             // Compress each chunk for each column
             for (int i = 0; i < monthChunks.size(); i++) {
@@ -340,9 +403,12 @@ public class EnhancedColumnStore {
             }
 
             isCompressed = true;
+            benchmark.recordMetric("Data Compression", "Enabled");
         } catch (IOException e) {
             System.err.println("Error compressing data: " + e.getMessage());
+            benchmark.recordMetric("Data Compression Error", e.getMessage());
         }
+        benchmark.stopTiming("Data Compression");
     }
 
     /**
@@ -365,35 +431,56 @@ public class EnhancedColumnStore {
      * @return List of indices of matching records
      */
     public List<Integer> findMatchingIndices(String targetTown, String startMonth, String endMonth, double minArea) {
+        benchmark.startTiming(BenchmarkReporter.Stage.QUERY_EXECUTION);
+
         // Create a query key for caching
         String queryKey = targetTown + "|" + startMonth + "|" + endMonth + "|" + minArea;
+        benchmark.recordMetric("Query Parameters", queryKey);
+
+        // Log query parameters
+        System.out.println("Query parameters:");
+        System.out.println("  Target town: " + targetTown);
+        System.out.println("  Date range: " + startMonth + " to " + endMonth);
+        System.out.println("  Minimum area: " + minArea + " sqm");
 
         // Check cache first
-        if (queryCache.containsKey(queryKey)) {
+        benchmark.startTiming("Cache Lookup");
+        boolean cacheHit = queryCache.containsKey(queryKey);
+        if (cacheHit) {
             // Update cache access order
             cacheKeys.remove(queryKey);
             cacheKeys.add(0, queryKey);
-
-            // This is just caching the final statistical result,
-            // so we need to re-find the indices even on a cache hit
+            benchmark.recordMetric("Cache Hit", "Yes");
+        } else {
+            benchmark.recordMetric("Cache Hit", "No");
         }
+        benchmark.stopTiming("Cache Lookup");
 
         // Use bitmap indexes for efficient filtering
+        benchmark.startTiming("Bitmap Filtering");
         BitSet resultBitSet = new BitSet(totalRows);
 
         // Start with town filter (usually most selective)
+        benchmark.startTiming("Town Filter");
         if (townBitmapIndex.containsKey(targetTown)) {
             resultBitSet = (BitSet) townBitmapIndex.get(targetTown).clone();
+            benchmark.recordMetric("Town Matches", resultBitSet.cardinality());
         } else {
             // Town not found, return empty result
+            benchmark.recordMetric("Town Not Found", targetTown);
+            benchmark.stopTiming("Town Filter");
+            benchmark.stopTiming("Bitmap Filtering");
+            benchmark.stopTiming(BenchmarkReporter.Stage.QUERY_EXECUTION);
             return Collections.emptyList();
         }
+        benchmark.stopTiming("Town Filter");
 
         // Parse date range for comparison
         YearMonth startYM = YearMonth.parse(startMonth);
         YearMonth endYM = YearMonth.parse(endMonth);
 
         // Apply date range filter
+        benchmark.startTiming("Date Range Filter");
         BitSet dateRangeBitSet = new BitSet(totalRows);
         dateRangeBitSet.set(0, totalRows); // Start with all bits set
 
@@ -410,9 +497,14 @@ public class EnhancedColumnStore {
         }
 
         // Combine town and date filters
+        int beforeDateFilter = resultBitSet.cardinality();
         resultBitSet.and(dateRangeBitSet);
+        int afterDateFilter = resultBitSet.cardinality();
+        benchmark.recordMetric("Date Range Matches", afterDateFilter);
+        benchmark.stopTiming("Date Range Filter");
 
         // Apply floor area filter
+        benchmark.startTiming("Floor Area Filter");
         BitSet floorAreaBitSet;
         // Find the closest threshold less than or equal to the requested minArea
         Map.Entry<Double, BitSet> floorAreaEntry = floorAreaRangeIndex.floorEntry(minArea);
@@ -433,12 +525,32 @@ public class EnhancedColumnStore {
                 }
             }
         }
+        int afterAreaFilter = resultBitSet.cardinality();
+        benchmark.recordMetric("Area Filter Matches", afterAreaFilter);
+        benchmark.stopTiming("Floor Area Filter");
+
+        benchmark.stopTiming("Bitmap Filtering");
 
         // Convert BitSet to a list of indices
+        benchmark.startTiming("Collect Results");
         List<Integer> matchingIndices = new ArrayList<>();
         for (int i = resultBitSet.nextSetBit(0); i >= 0; i = resultBitSet.nextSetBit(i + 1)) {
             matchingIndices.add(i);
         }
+        benchmark.stopTiming("Collect Results");
+
+        // Calculate selectivity
+        benchmark.recordMetric("Town Filter Selectivity",
+                String.format("%.2f%%", (beforeDateFilter * 100.0 / totalRows)));
+        benchmark.recordMetric("Date Range Filter Selectivity",
+                String.format("%.2f%%", (afterDateFilter * 100.0 / beforeDateFilter)));
+        benchmark.recordMetric("Area Filter Selectivity",
+                String.format("%.2f%%", (afterAreaFilter * 100.0 / afterDateFilter)));
+        benchmark.recordMetric("Final Result Count", matchingIndices.size());
+
+        long queryTime = benchmark.stopTiming(BenchmarkReporter.Stage.QUERY_EXECUTION);
+        System.out.println("Query execution completed in " + queryTime + " ms");
+        System.out.println("Found " + matchingIndices.size() + " matching records");
 
         return matchingIndices;
     }
@@ -452,43 +564,65 @@ public class EnhancedColumnStore {
      * @return QueryResult containing the calculated statistic
      */
     public QueryResult calculateStatistics(List<Integer> indices, StatisticType type) {
+        String opName = "Calculate " + type.getDisplayName();
+        benchmark.startTiming(opName);
+        benchmark.startTiming(BenchmarkReporter.Stage.STATISTICS_CALCULATION);
+
         // Create a query key for caching
         String queryKey = type.name() + "|" + indices.hashCode();
 
         // Check cache first
-        if (queryCache.containsKey(queryKey)) {
+        benchmark.startTiming("Statistics Cache Lookup");
+        boolean cacheHit = queryCache.containsKey(queryKey);
+        QueryResult result;
+
+        if (cacheHit) {
             // Update cache access order
             cacheKeys.remove(queryKey);
             cacheKeys.add(0, queryKey);
-            return queryCache.get(queryKey);
+            result = queryCache.get(queryKey);
+            benchmark.recordMetric("Statistics Cache Hit", "Yes");
+            benchmark.stopTiming("Statistics Cache Lookup");
+            benchmark.stopTiming(BenchmarkReporter.Stage.STATISTICS_CALCULATION);
+            benchmark.stopTiming(opName);
+            return result;
         }
+        benchmark.recordMetric("Statistics Cache Hit", "No");
+        benchmark.stopTiming("Statistics Cache Lookup");
 
         // Return "No result" if no matching records found
         if (indices.isEmpty()) {
-            QueryResult result = new QueryResult("No result");
+            result = new QueryResult("No result");
             cacheResult(queryKey, result);
+            benchmark.stopTiming(BenchmarkReporter.Stage.STATISTICS_CALCULATION);
+            benchmark.stopTiming(opName);
             return result;
         }
 
         // Decide whether to use parallel processing based on data size
         boolean useParallel = indices.size() > PARALLEL_THRESHOLD;
-
-        double result;
+        benchmark.recordMetric("Parallel Processing", useParallel ? "Enabled" : "Disabled");
+        benchmark.recordMetric("Records Processed", indices.size());
 
         // Convert global indices to chunk-local indices for efficient access
+        benchmark.startTiming("Convert Indices");
         Map<Integer, List<Integer>> chunkIndices = convertToChunkIndices(indices);
+        benchmark.stopTiming("Convert Indices");
+
+        double value;
+        benchmark.startTiming("Calculation");
 
         switch (type) {
             case MINIMUM_PRICE:
                 // Calculate minimum resale price
-                result = useParallel
+                value = useParallel
                         ? calculateMinPriceParallel(chunkIndices)
                         : calculateMinPriceSequential(chunkIndices);
                 break;
 
             case AVERAGE_PRICE:
                 // Calculate average resale price
-                result = useParallel
+                value = useParallel
                         ? calculateAvgPriceParallel(chunkIndices)
                         : calculateAvgPriceSequential(chunkIndices);
                 break;
@@ -501,14 +635,14 @@ public class EnhancedColumnStore {
                         : calculateAvgPriceSequential(chunkIndices);
 
                 // Second pass: calculate variance
-                result = useParallel
+                value = useParallel
                         ? calculateStdDevParallel(chunkIndices, mean)
                         : calculateStdDevSequential(chunkIndices, mean);
                 break;
 
             case MIN_PRICE_PER_SQM:
                 // Calculate minimum price per square meter
-                result = useParallel
+                value = useParallel
                         ? calculateMinPricePerSqmParallel(chunkIndices)
                         : calculateMinPricePerSqmSequential(chunkIndices);
                 break;
@@ -516,14 +650,24 @@ public class EnhancedColumnStore {
             default:
                 throw new IllegalArgumentException("Unknown statistic type");
         }
+        benchmark.stopTiming("Calculation");
 
         // Format result to 2 decimal places
-        QueryResult queryResult = new QueryResult(String.format("%.2f", result));
+        result = new QueryResult(String.format("%.2f", value));
 
         // Cache the result
-        cacheResult(queryKey, queryResult);
+        benchmark.startTiming("Cache Result");
+        cacheResult(queryKey, result);
+        benchmark.stopTiming("Cache Result");
 
-        return queryResult;
+        benchmark.recordMetric(type.getDisplayName(), result.getValue());
+
+        long calcTime = benchmark.stopTiming(BenchmarkReporter.Stage.STATISTICS_CALCULATION);
+        benchmark.stopTiming(opName);
+
+        System.out.println(type.getDisplayName() + " calculated in " + calcTime + " ms: " + result.getValue());
+
+        return result;
     }
 
     /**
@@ -730,5 +874,12 @@ public class EnhancedColumnStore {
      */
     public boolean usesMemoryMapping() {
         return usesMemoryMapping;
+    }
+
+    /**
+     * Gets the benchmark reporter instance
+     */
+    public BenchmarkReporter getBenchmark() {
+        return benchmark;
     }
 }

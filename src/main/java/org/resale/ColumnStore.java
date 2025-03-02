@@ -3,7 +3,6 @@ package org.resale;
 import java.io.*;
 import java.util.*;
 import java.time.YearMonth;
-import java.util.concurrent.TimeUnit;
 
 /**
  * ColumnStore.java
@@ -11,11 +10,7 @@ import java.util.concurrent.TimeUnit;
  * This class implements a column-oriented storage system for HDB resale flat data.
  * It provides functionality to load, store, and analyze HDB resale transactions
  * in a column-oriented manner for efficient querying and analysis.
- * This version includes benchmarking instrumentation.
- *
- * The data is stored in separate arrays for each column (month, town, floor area, price)
- * which allows for efficient scanning and filtering of specific columns without loading
- * unnecessary data into memory.
+ * This version uses the unified benchmarking framework.
  */
 class ColumnStore {
     // Column arrays for storing different attributes of the HDB data
@@ -24,7 +19,10 @@ class ColumnStore {
     private List<Double> floorAreas;  // Floor areas in square meters
     private List<Double> resalePrices;// Resale prices in SGD
 
-    // Benchmarking metadata
+    // Benchmarking instance
+    private final BenchmarkReporter benchmark;
+
+    // Metadata
     private int totalRows = 0;
     private Map<String, Integer> townCounts = new HashMap<>();
     private Map<String, Integer> monthCounts = new HashMap<>();
@@ -33,10 +31,22 @@ class ColumnStore {
      * Constructor initializes empty column arrays for data storage.
      */
     public ColumnStore() {
+        this(new BenchmarkReporter("ColumnStore"));
+    }
+
+    /**
+     * Constructor with custom benchmark reporter
+     */
+    public ColumnStore(BenchmarkReporter benchmark) {
+        this.benchmark = benchmark;
+        benchmark.startTiming(BenchmarkReporter.Stage.INITIALIZATION);
+
         this.months = new ArrayList<>();
         this.towns = new ArrayList<>();
         this.floorAreas = new ArrayList<>();
         this.resalePrices = new ArrayList<>();
+
+        benchmark.stopTiming(BenchmarkReporter.Stage.INITIALIZATION);
     }
 
     /**
@@ -47,7 +57,7 @@ class ColumnStore {
      * @throws IOException If there are issues reading the file
      */
     public void loadData(String filepath) throws IOException {
-        long startTime = System.nanoTime();
+        benchmark.startTiming(BenchmarkReporter.Stage.DATA_LOADING);
         int lineCount = 0;
 
         try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
@@ -76,28 +86,27 @@ class ColumnStore {
                 lineCount++;
                 if (lineCount % batchSize == 0) {
                     currentBatch++;
-                    long currentTime = System.nanoTime();
-                    System.out.println("  Processed " + lineCount + " rows in " +
-                            TimeUnit.NANOSECONDS.toMillis(currentTime - startTime) + " ms");
+                    benchmark.recordMetric("Rows Processed", lineCount);
                 }
             }
         }
 
-        long endTime = System.nanoTime();
-        System.out.println("Data loading completed:");
-        System.out.println("  Total rows loaded: " + totalRows);
-        System.out.println("  Unique towns: " + townCounts.size());
-        System.out.println("  Unique months: " + monthCounts.size());
-        System.out.println("  Loading time: " + TimeUnit.NANOSECONDS.toMillis(endTime - startTime) + " ms");
+        // Record data loading metrics
+        benchmark.recordMetric("Total Rows", totalRows);
+        benchmark.recordMetric("Unique Towns", townCounts.size());
+        benchmark.recordMetric("Unique Months", monthCounts.size());
+
+        long loadingTime = benchmark.stopTiming(BenchmarkReporter.Stage.DATA_LOADING);
+        System.out.println("Data loading completed in " + loadingTime + " ms");
 
         // Print distribution statistics for debugging
-        System.out.println("\nTown distribution (top 5):");
+        benchmark.printSectionHeading("Town Distribution (Top 5)");
         townCounts.entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                 .limit(5)
                 .forEach(e -> System.out.println("  " + e.getKey() + ": " + e.getValue() + " records"));
 
-        System.out.println("\nYear distribution:");
+        benchmark.printSectionHeading("Year Distribution");
         Map<String, Integer> yearCounts = new HashMap<>();
         for (String month : monthCounts.keySet()) {
             String year = month.substring(0, 4);
@@ -121,6 +130,9 @@ class ColumnStore {
     public List<Integer> findMatchingIndices(String targetTown, String startMonth, String endMonth, double minArea) {
         List<Integer> matchingIndices = new ArrayList<>();
 
+        benchmark.startTiming(BenchmarkReporter.Stage.QUERY_EXECUTION);
+        benchmark.startTiming("Town Filter");
+
         // Log query parameters for benchmarking
         System.out.println("Query parameters:");
         System.out.println("  Target town: " + targetTown);
@@ -135,8 +147,6 @@ class ColumnStore {
         int townMatches = 0;
         int dateRangeMatches = 0;
         int areaMatches = 0;
-
-        long scanStartTime = System.nanoTime();
 
         // Scan through all records
         for (int i = 0; i < months.size(); i++) {
@@ -158,14 +168,19 @@ class ColumnStore {
             }
         }
 
-        long scanEndTime = System.nanoTime();
+        long townFilterTime = benchmark.stopTiming("Town Filter");
+        long queryTime = benchmark.stopTiming(BenchmarkReporter.Stage.QUERY_EXECUTION);
 
-        // Log filter performance
-        System.out.println("Filter performance:");
-        System.out.println("  Records matching town: " + townMatches);
-        System.out.println("  Records matching town + date range: " + dateRangeMatches);
-        System.out.println("  Records matching all criteria: " + areaMatches);
-        System.out.println("  Scan time: " + TimeUnit.NANOSECONDS.toMillis(scanEndTime - scanStartTime) + " ms");
+        // Record filter performance metrics
+        benchmark.recordMetric("Records Matching Town", townMatches);
+        benchmark.recordMetric("Records Matching Town+Date", dateRangeMatches);
+        benchmark.recordMetric("Records Matching All Criteria", areaMatches);
+        benchmark.recordMetric("Town Filter Selectivity",
+                String.format("%.2f%%", (townMatches * 100.0 / totalRows)));
+        benchmark.recordMetric("Date Range Selectivity",
+                String.format("%.2f%%", (dateRangeMatches * 100.0 / townMatches)));
+        benchmark.recordMetric("Area Filter Selectivity",
+                String.format("%.2f%%", (areaMatches * 100.0 / dateRangeMatches)));
 
         return matchingIndices;
     }
@@ -183,8 +198,9 @@ class ColumnStore {
             return new QueryResult("No result");
         }
 
-        System.out.println("Calculating " + type.getDisplayName() + " for " + indices.size() + " records...");
-        long startTime = System.nanoTime();
+        String opName = "Calculate " + type.getDisplayName();
+        benchmark.startTiming(opName);
+        benchmark.startTiming(BenchmarkReporter.Stage.STATISTICS_CALCULATION);
 
         double result;
         switch (type) {
@@ -233,9 +249,12 @@ class ColumnStore {
                 throw new IllegalArgumentException("Unknown statistic type");
         }
 
-        long endTime = System.nanoTime();
-        System.out.println("  Calculation completed in " +
-                TimeUnit.NANOSECONDS.toMillis(endTime - startTime) + " ms");
+        benchmark.stopTiming(BenchmarkReporter.Stage.STATISTICS_CALCULATION);
+        long calcTime = benchmark.stopTiming(opName);
+
+        // Record statistics calculation metrics
+        benchmark.recordMetric(type.getDisplayName() + " Calculation Time", calcTime + " ms");
+        benchmark.recordMetric(type.getDisplayName() + " Records Processed", indices.size());
 
         // Format result to 2 decimal places
         return new QueryResult(String.format("%.2f", result));
@@ -274,5 +293,12 @@ class ColumnStore {
      */
     public double getResalePrice(int index) {
         return resalePrices.get(index);
+    }
+
+    /**
+     * Gets the benchmark reporter instance
+     */
+    public BenchmarkReporter getBenchmark() {
+        return benchmark;
     }
 }
