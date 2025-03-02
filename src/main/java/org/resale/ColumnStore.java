@@ -4,6 +4,8 @@ import java.io.*;
 import java.util.*;
 import java.time.YearMonth;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * ColumnStore.java
  *
@@ -12,20 +14,21 @@ import java.time.YearMonth;
  * in a column-oriented manner for efficient querying and analysis.
  * This version uses the unified benchmarking framework.
  */
+@Slf4j
 class ColumnStore {
     // Column arrays for storing different attributes of the HDB data
-    private List<String> months;      // Format: YYYY-MM
-    private List<String> towns;       // Town names
-    private List<Double> floorAreas;  // Floor areas in square meters
-    private List<Double> resalePrices;// Resale prices in SGD
+    private final List<String> months;      // Format: YYYY-MM
+    private final List<String> towns;       // Town names
+    private final List<Double> floorAreas;  // Floor areas in square meters
+    private final List<Double> resalePrices;// Resale prices in SGD
 
     // Benchmarking instance
     private final BenchmarkReporter benchmark;
 
     // Metadata
     private int totalRows = 0;
-    private Map<String, Integer> townCounts = new HashMap<>();
-    private Map<String, Integer> monthCounts = new HashMap<>();
+    private final Map<String, Integer> townCounts = new HashMap<>();
+    private final Map<String, Integer> monthCounts = new HashMap<>();
 
     /**
      * Constructor initializes empty column arrays for data storage.
@@ -63,11 +66,10 @@ class ColumnStore {
         try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
             String line = br.readLine(); // Skip header row
 
-            System.out.println("Header: " + line);
-            System.out.println("Starting data loading...");
+            log.info("Header: {}", line);
+            log.info("Starting data loading...");
 
             int batchSize = 100000;
-            int currentBatch = 0;
 
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
@@ -85,7 +87,6 @@ class ColumnStore {
                 // Print progress for large files
                 lineCount++;
                 if (lineCount % batchSize == 0) {
-                    currentBatch++;
                     benchmark.recordMetric("Rows Processed", lineCount);
                 }
             }
@@ -97,25 +98,25 @@ class ColumnStore {
         benchmark.recordMetric("Unique Months", monthCounts.size());
 
         long loadingTime = benchmark.stopTiming(BenchmarkReporter.Stage.DATA_LOADING);
-        System.out.println("Data loading completed in " + loadingTime + " ms");
+        log.info("Data loading completed in {} ms", loadingTime);
 
         // Print distribution statistics for debugging
         benchmark.printSectionHeading("Town Distribution (Top 5)");
         townCounts.entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                 .limit(5)
-                .forEach(e -> System.out.println("  " + e.getKey() + ": " + e.getValue() + " records"));
+                .forEach(e -> log.info("  {}: {} records", e.getKey(), e.getValue()));
 
         benchmark.printSectionHeading("Year Distribution");
         Map<String, Integer> yearCounts = new HashMap<>();
-        for (String month : monthCounts.keySet()) {
-            String year = month.substring(0, 4);
-            yearCounts.put(year, yearCounts.getOrDefault(year, 0) + monthCounts.get(month));
+        for (Map.Entry<String, Integer> entry : monthCounts.entrySet()) {
+            String year = entry.getKey().substring(0, 4);
+            yearCounts.put(year, yearCounts.getOrDefault(year, 0) + entry.getValue());
         }
 
         yearCounts.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .forEach(e -> System.out.println("  " + e.getKey() + ": " + e.getValue() + " records"));
+                .forEach(e -> log.info("  {}: {} records", e.getKey(), e.getValue()));
     }
 
     /**
@@ -134,10 +135,10 @@ class ColumnStore {
         benchmark.startTiming("Town Filter");
 
         // Log query parameters for benchmarking
-        System.out.println("Query parameters:");
-        System.out.println("  Target town: " + targetTown);
-        System.out.println("  Date range: " + startMonth + " to " + endMonth);
-        System.out.println("  Minimum area: " + minArea + " sqm");
+        log.info("Query parameters:");
+        log.info("  Target town: {}", targetTown);
+        log.info("  Date range: {} to {}", startMonth, endMonth);
+        log.info("  Minimum area: {} sqm", minArea);
 
         // Parse date range for comparison
         YearMonth start = YearMonth.parse(startMonth);
@@ -168,19 +169,18 @@ class ColumnStore {
             }
         }
 
-        long townFilterTime = benchmark.stopTiming("Town Filter");
-        long queryTime = benchmark.stopTiming(BenchmarkReporter.Stage.QUERY_EXECUTION);
 
         // Record filter performance metrics
+        final String PERCENTAGE_FORMAT = "%.2f%%";
         benchmark.recordMetric("Records Matching Town", townMatches);
         benchmark.recordMetric("Records Matching Town+Date", dateRangeMatches);
         benchmark.recordMetric("Records Matching All Criteria", areaMatches);
         benchmark.recordMetric("Town Filter Selectivity",
-                String.format("%.2f%%", (townMatches * 100.0 / totalRows)));
+                String.format(PERCENTAGE_FORMAT, (townMatches * 100.0 / totalRows)));
         benchmark.recordMetric("Date Range Selectivity",
-                String.format("%.2f%%", (dateRangeMatches * 100.0 / townMatches)));
+                String.format(PERCENTAGE_FORMAT, (dateRangeMatches * 100.0 / townMatches)));
         benchmark.recordMetric("Area Filter Selectivity",
-                String.format("%.2f%%", (areaMatches * 100.0 / dateRangeMatches)));
+                String.format(PERCENTAGE_FORMAT, (areaMatches * 100.0 / dateRangeMatches)));
 
         return matchingIndices;
     }
@@ -207,7 +207,7 @@ class ColumnStore {
             case MINIMUM_PRICE:
                 // Calculate minimum resale price
                 result = indices.stream()
-                        .mapToDouble(i -> resalePrices.get(i))
+                        .mapToDouble(resalePrices::get)
                         .min()
                         .orElse(0.0);
                 break;
@@ -215,7 +215,7 @@ class ColumnStore {
             case AVERAGE_PRICE:
                 // Calculate average resale price
                 result = indices.stream()
-                        .mapToDouble(i -> resalePrices.get(i))
+                        .mapToDouble(resalePrices::get)
                         .average()
                         .orElse(0.0);
                 break;
@@ -223,7 +223,7 @@ class ColumnStore {
             case STANDARD_DEVIATION:
                 // Calculate mean first
                 double mean = indices.stream()
-                        .mapToDouble(i -> resalePrices.get(i))
+                        .mapToDouble(resalePrices::get)
                         .average()
                         .orElse(0.0);
 
@@ -258,47 +258,5 @@ class ColumnStore {
 
         // Format result to 2 decimal places
         return new QueryResult(String.format("%.2f", result));
-    }
-
-    /**
-     * Returns the total number of rows in the dataset
-     */
-    public int getTotalRows() {
-        return totalRows;
-    }
-
-    /**
-     * Gets the month value at the specified index
-     */
-    public String getMonth(int index) {
-        return months.get(index);
-    }
-
-    /**
-     * Gets the town value at the specified index
-     */
-    public String getTown(int index) {
-        return towns.get(index);
-    }
-
-    /**
-     * Gets the floor area value at the specified index
-     */
-    public double getFloorArea(int index) {
-        return floorAreas.get(index);
-    }
-
-    /**
-     * Gets the resale price value at the specified index
-     */
-    public double getResalePrice(int index) {
-        return resalePrices.get(index);
-    }
-
-    /**
-     * Gets the benchmark reporter instance
-     */
-    public BenchmarkReporter getBenchmark() {
-        return benchmark;
     }
 }

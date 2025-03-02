@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * UnifiedMain.java
  *
@@ -13,6 +15,7 @@ import java.util.List;
  * This program can run both the basic ColumnStore and the EnhancedColumnStore
  * implementations with consistent benchmark reporting for direct comparison.
  */
+@Slf4j
 public class UnifiedMain {
     // Configuration constants
     private static final String DEFAULT_FILEPATH = "data/ResalePricesSingapore.csv";
@@ -75,7 +78,7 @@ public class UnifiedMain {
             } else if (options.implementationType.equalsIgnoreCase("enhancedcolumnstore")) {
                 runEnhancedColumnStore(options, benchmark, startDate, endDate);
             } else {
-                System.err.println("Error: Unknown implementation type - " + options.implementationType);
+                log.error("Error: Unknown implementation type - {}", options.implementationType);
                 return;
             }
 
@@ -83,11 +86,9 @@ public class UnifiedMain {
             benchmark.generateReport();
 
         } catch (IOException e) {
-            System.err.println("Error processing file: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error processing file: {}", e.getMessage());
         } catch (Exception e) {
-            System.err.println("Unexpected error: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Unexpected error: {}", e.getMessage());
         }
     }
 
@@ -143,8 +144,8 @@ public class UnifiedMain {
 
         // Create output directory if it doesn't exist
         File resultDir = new File("result");
-        if (!resultDir.exists()) {
-            resultDir.mkdirs();
+        if (!resultDir.exists() && !resultDir.mkdirs()) {
+            log.error("Failed to create result directory: {}", resultDir.getAbsolutePath());
         }
 
         // Create output file based on implementation type
@@ -158,10 +159,9 @@ public class UnifiedMain {
             List<Integer> matchingIndices;
 
             // Execute query based on implementation type
-            if (storeObject instanceof ColumnStore) {
-                ColumnStore store = (ColumnStore) storeObject;
+            if (storeObject instanceof ColumnStore store) {
                 matchingIndices = store.findMatchingIndices(
-                        options.targetTown, startDate, endDate, options.minArea);
+                    options.targetTown, startDate, endDate, options.minArea);
 
                 // Process each statistic type
                 benchmark.printSectionHeading("Calculating Statistics");
@@ -187,7 +187,7 @@ public class UnifiedMain {
             }
         }
 
-        System.out.println("\nAnalysis complete. Results written to " + outputFile);
+        log.info("\nAnalysis complete. Results written to {}", outputFile);
     }
 
     /**
@@ -212,7 +212,7 @@ public class UnifiedMain {
         options.implementationType = "ColumnStore"; // Default implementation
 
         if (args.length < 2) {
-            System.out.println("Error: Implementation type and matriculation number are required");
+            log.error("Error: Implementation type and matriculation number are required");
             return null;
         }
 
@@ -242,7 +242,7 @@ public class UnifiedMain {
             options.targetTown = towns[thirdLastDigit];
 
         } catch (Exception e) {
-            System.out.println("Error parsing matriculation number: " + e.getMessage());
+            log.error("Error parsing matriculation number: {}", e.getMessage());
             return null;
         }
 
@@ -258,11 +258,11 @@ public class UnifiedMain {
                 try {
                     options.minArea = Double.parseDouble(args[++i]);
                 } catch (NumberFormatException e) {
-                    System.out.println("Error: Invalid minimum area value");
+                    log.error("Error: Invalid minimum area value");
                     return null;
                 }
             } else {
-                System.out.println("Error: Unknown option: " + arg);
+                log.error("Error: Unknown option: {}", arg);
                 return null;
             }
         }
@@ -274,20 +274,20 @@ public class UnifiedMain {
      * Display usage information
      */
     private static void displayUsage() {
-        System.out.println("Usage: java UnifiedMain <implementation_type> <matriculation_number> [options]");
-        System.out.println();
-        System.out.println("Implementation Types:");
-        System.out.println("  ColumnStore           Use the basic column store implementation");
-        System.out.println("  EnhancedColumnStore   Use the enhanced column store implementation");
-        System.out.println();
-        System.out.println("Options:");
-        System.out.println("  --file <filepath>    Specify the input CSV file path");
-        System.out.println("  --compress           Enable data compression (EnhancedColumnStore only)");
-        System.out.println("  --min-area <value>   Specify the minimum floor area (default: 80.0)");
-        System.out.println();
-        System.out.println("Examples:");
-        System.out.println("  java UnifiedMain ColumnStore U2211641C");
-        System.out.println("  java UnifiedMain EnhancedColumnStore U2211641C --compress");
+        log.info("Usage: java UnifiedMain <implementation_type> <matriculation_number> [options]");
+        log.info("");
+        log.info("Implementation Types:");
+        log.info("  ColumnStore           Use the basic column store implementation");
+        log.info("  EnhancedColumnStore   Use the enhanced column store implementation");
+        log.info("");
+        log.info("Options:");
+        log.info("  --file <filepath>    Specify the input CSV file path");
+        log.info("  --compress           Enable data compression (EnhancedColumnStore only)");
+        log.info("  --min-area <value>   Specify the minimum floor area (default: 80.0)");
+        log.info("");
+        log.info("Examples:");
+        log.info("  java UnifiedMain ColumnStore U2211641C");
+        log.info("  java UnifiedMain EnhancedColumnStore U2211641C --compress");
     }
 
     /**

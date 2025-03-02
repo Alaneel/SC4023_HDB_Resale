@@ -1,6 +1,7 @@
 package org.resale;
 
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
 import java.nio.MappedByteBuffer;
@@ -8,7 +9,6 @@ import java.nio.channels.FileChannel;
 import java.time.YearMonth;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.IntStream;
 
 /**
  * EnhancedColumnStore.java
@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
  *
  * This version uses the unified benchmarking framework.
  */
+@Slf4j
 public class EnhancedColumnStore {
     // Configuration parameters
     private static final int CHUNK_SIZE = 100_000; // Number of rows per chunk
@@ -31,10 +32,10 @@ public class EnhancedColumnStore {
     private static final int PARALLEL_THRESHOLD = 10_000; // Threshold for parallel processing
 
     // Column data structures
-    private List<List<Integer>> monthChunks; // Dictionary-encoded months (YYYY-MM)
-    private List<List<Integer>> townChunks;  // Dictionary-encoded towns
-    private List<List<Double>> floorAreaChunks; // Floor areas in square meters
-    private List<List<Double>> resalePriceChunks; // Resale prices in SGD
+    private final List<List<Integer>> monthChunks; // Dictionary-encoded months (YYYY-MM)
+    private final List<List<Integer>> townChunks;  // Dictionary-encoded towns
+    private final List<List<Double>> floorAreaChunks; // Floor areas in square meters
+    private final List<List<Double>> resalePriceChunks; // Resale prices in SGD
 
     // Benchmarking instance
     private final BenchmarkReporter benchmark;
@@ -54,10 +55,14 @@ public class EnhancedColumnStore {
     private final Map<String, QueryResult> queryCache = new ConcurrentHashMap<>();
     private final List<String> cacheKeys = new ArrayList<>();
 
+    /**
+     * -- GETTER --
+     *  Returns the total number of rows in the dataset
+     */
     // Metadata
+    @Getter
     private int totalRows = 0;
     private boolean isCompressed = false;
-    private boolean usesMemoryMapping = false;
 
     /**
      * Constructor initializes data structures for column storage
@@ -95,7 +100,6 @@ public class EnhancedColumnStore {
     public void loadData(String filepath, boolean useMemoryMapping) throws IOException {
         benchmark.startTiming(BenchmarkReporter.Stage.DATA_LOADING);
 
-        this.usesMemoryMapping = useMemoryMapping;
         benchmark.recordMetric("Memory Mapping", useMemoryMapping ? "Enabled" : "Disabled");
 
         if (useMemoryMapping) {
@@ -121,7 +125,7 @@ public class EnhancedColumnStore {
         benchmark.recordMetric("Avg Rows Per Chunk", totalRows / Math.max(1, monthChunks.size()));
 
         long loadingTime = benchmark.stopTiming(BenchmarkReporter.Stage.DATA_LOADING);
-        System.out.println("Data loading completed in " + loadingTime + " ms");
+        log.info("Data loading completed in {} ms", loadingTime);
     }
 
     /**
@@ -136,7 +140,7 @@ public class EnhancedColumnStore {
 
         try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
             String line = br.readLine(); // Skip header row
-            System.out.println("Header: " + line);
+            log.info("Header: {}", line);
 
             int rowCount = 0;
             int batchSize = 100000;
@@ -235,7 +239,7 @@ public class EnhancedColumnStore {
                     // Skip header
                     if (isFirstLine) {
                         isFirstLine = false;
-                        System.out.println("Header: " + line.toString());
+                        log.info("Header: {}", line.toString());
                         line.setLength(0);
                         continue;
                     }
@@ -314,9 +318,10 @@ public class EnhancedColumnStore {
 
         // Build town bitmap index
         benchmark.startTiming("Town Bitmap Index");
-        for (String town : townDictionary.keySet()) {
+        for (Map.Entry<String, Integer> entry : townDictionary.entrySet()) {
+            String town = entry.getKey();
+            int townCode = entry.getValue();
             BitSet bitSet = new BitSet(totalRows);
-            int townCode = townDictionary.get(town);
 
             int globalRowIndex = 0;
             for (int chunkIndex = 0; chunkIndex < townChunks.size(); chunkIndex++) {
@@ -342,10 +347,9 @@ public class EnhancedColumnStore {
             int monthCode = monthDictionary.get(month);
 
             int globalRowIndex = 0;
-            for (int chunkIndex = 0; chunkIndex < monthChunks.size(); chunkIndex++) {
-                List<Integer> chunk = monthChunks.get(chunkIndex);
-                for (int i = 0; i < chunk.size(); i++) {
-                    if (chunk.get(i) == monthCode) {
+            for (List<Integer> chunk : monthChunks) {
+                for (Integer integer : chunk) {
+                    if (integer == monthCode) {
                         bitSet.set(globalRowIndex);
                     }
                     globalRowIndex++;
@@ -382,7 +386,7 @@ public class EnhancedColumnStore {
 
         // Record overall index building time
         long indexTime = benchmark.stopTiming(BenchmarkReporter.Stage.INDEX_BUILDING);
-        System.out.println("Index building completed in " + indexTime + " ms");
+        log.info("Index building completed in {} ms", indexTime);
     }
 
     /**
@@ -394,29 +398,23 @@ public class EnhancedColumnStore {
         }
 
         benchmark.startTiming("Data Compression");
-        try {
-            // Compress each chunk for each column
-            for (int i = 0; i < monthChunks.size(); i++) {
-                monthChunks.set(i, compressIntegerList(monthChunks.get(i)));
-                townChunks.set(i, compressIntegerList(townChunks.get(i)));
-                // Note: We don't compress numeric columns as the overhead might outweigh benefits
-            }
-
-            isCompressed = true;
-            benchmark.recordMetric("Data Compression", "Enabled");
-        } catch (IOException e) {
-            System.err.println("Error compressing data: " + e.getMessage());
-            benchmark.recordMetric("Data Compression Error", e.getMessage());
+        // Compress each chunk for each column
+        for (int i = 0; i < monthChunks.size(); i++) {
+            monthChunks.set(i, compressIntegerList(monthChunks.get(i)));
+            townChunks.set(i, compressIntegerList(townChunks.get(i)));
+            // Note: We don't compress numeric columns as the overhead might outweigh benefits
         }
+
+        isCompressed = true;
+        benchmark.recordMetric("Data Compression", "Enabled");
         benchmark.stopTiming("Data Compression");
     }
 
     /**
      * Helper method to compress a list of integers
      */
-    private List<Integer> compressIntegerList(List<Integer> list) throws IOException {
+    private List<Integer> compressIntegerList(List<Integer> list) {
         // Dictionary encoding is already applied, so we'll just return the original list
-        // In a real implementation, we might use run-length encoding or other techniques
         return list;
     }
 
@@ -438,10 +436,10 @@ public class EnhancedColumnStore {
         benchmark.recordMetric("Query Parameters", queryKey);
 
         // Log query parameters
-        System.out.println("Query parameters:");
-        System.out.println("  Target town: " + targetTown);
-        System.out.println("  Date range: " + startMonth + " to " + endMonth);
-        System.out.println("  Minimum area: " + minArea + " sqm");
+        log.info("Query parameters:");
+        log.info("  Target town: {}", targetTown);
+        log.info("  Date range: {} to {}", startMonth, endMonth);
+        log.info("  Minimum area: {} sqm", minArea);
 
         // Check cache first
         benchmark.startTiming("Cache Lookup");
@@ -485,11 +483,11 @@ public class EnhancedColumnStore {
         dateRangeBitSet.set(0, totalRows); // Start with all bits set
 
         // Get all months in the range
-        for (String month : monthRangeIndex.keySet()) {
-            YearMonth current = YearMonth.parse(month);
+        for (Map.Entry<String, BitSet> entry : monthRangeIndex.entrySet()) {
+            YearMonth current = YearMonth.parse(entry.getKey());
             if (current.isBefore(startYM) || current.isAfter(endYM)) {
                 // Remove months outside the range
-                BitSet monthBitSet = monthRangeIndex.get(month);
+                BitSet monthBitSet = entry.getValue();
                 BitSet invertedMonthBitSet = (BitSet) monthBitSet.clone();
                 invertedMonthBitSet.flip(0, totalRows);
                 dateRangeBitSet.and(invertedMonthBitSet);
@@ -549,8 +547,8 @@ public class EnhancedColumnStore {
         benchmark.recordMetric("Final Result Count", matchingIndices.size());
 
         long queryTime = benchmark.stopTiming(BenchmarkReporter.Stage.QUERY_EXECUTION);
-        System.out.println("Query execution completed in " + queryTime + " ms");
-        System.out.println("Found " + matchingIndices.size() + " matching records");
+        log.info("Query execution completed in {} ms", queryTime);
+        log.info("Found {} matching records", matchingIndices.size());
 
         return matchingIndices;
     }
@@ -665,7 +663,7 @@ public class EnhancedColumnStore {
         long calcTime = benchmark.stopTiming(BenchmarkReporter.Stage.STATISTICS_CALCULATION);
         benchmark.stopTiming(opName);
 
-        System.out.println(type.getDisplayName() + " calculated in " + calcTime + " ms: " + result.getValue());
+        log.info("{} calculated in {} ms: {}", type.getDisplayName(), calcTime, result.getValue());
 
         return result;
     }
@@ -855,31 +853,4 @@ public class EnhancedColumnStore {
         }
     }
 
-    /**
-     * Returns the total number of rows in the dataset
-     */
-    public int getTotalRows() {
-        return totalRows;
-    }
-
-    /**
-     * Returns whether the data is compressed
-     */
-    public boolean isCompressed() {
-        return isCompressed;
-    }
-
-    /**
-     * Returns whether memory mapping is used
-     */
-    public boolean usesMemoryMapping() {
-        return usesMemoryMapping;
-    }
-
-    /**
-     * Gets the benchmark reporter instance
-     */
-    public BenchmarkReporter getBenchmark() {
-        return benchmark;
-    }
 }

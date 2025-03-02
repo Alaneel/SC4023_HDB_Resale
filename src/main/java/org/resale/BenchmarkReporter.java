@@ -9,6 +9,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * BenchmarkReporter.java
  *
@@ -17,9 +20,11 @@ import java.util.concurrent.TimeUnit;
  * functionality to ensure consistent benchmark measurements across
  * different implementations.
  */
+@Slf4j
 public class BenchmarkReporter {
 
     // Benchmark stages
+    @Getter
     public enum Stage {
         INITIALIZATION("Initialization"),
         DATA_LOADING("Data Loading"),
@@ -34,9 +39,6 @@ public class BenchmarkReporter {
             this.displayName = displayName;
         }
 
-        public String getDisplayName() {
-            return displayName;
-        }
     }
 
     // Timing data
@@ -80,10 +82,10 @@ public class BenchmarkReporter {
         this.startTiming(Stage.TOTAL_EXECUTION.name());
 
         // Print benchmark header
-        System.out.println("============================================================");
-        System.out.println("  BENCHMARK: " + implementationName);
-        System.out.println("  Started at: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()));
-        System.out.println("============================================================");
+        log.info("============================================================");
+        log.info("  BENCHMARK: {}", implementationName);
+        log.info("  Started at: {}", new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()));
+        log.info("============================================================");
     }
 
     /**
@@ -95,7 +97,7 @@ public class BenchmarkReporter {
         startTimes.put(key, System.nanoTime());
 
         if (enableDetailedLogging) {
-            System.out.println("[BENCHMARK] Starting: " + key);
+            log.info("[BENCHMARK] Starting: {}", key);
         }
     }
 
@@ -126,7 +128,7 @@ public class BenchmarkReporter {
         elapsedTimes.put(key, elapsedTimeMs);
 
         if (enableDetailedLogging) {
-            System.out.println("[BENCHMARK] Completed: " + key + " in " + elapsedTimeMs + " ms");
+            log.info("[BENCHMARK] Completed: {} in {} ms", key, elapsedTimeMs);
         }
 
         return elapsedTimeMs;
@@ -152,7 +154,7 @@ public class BenchmarkReporter {
         metrics.put(key, value);
 
         if (enableDetailedLogging) {
-            System.out.println("[BENCHMARK] Metric: " + key + " = " + value);
+            log.info("[BENCHMARK] Metric: {} = {}", key, value);
         }
     }
 
@@ -162,7 +164,7 @@ public class BenchmarkReporter {
      * @param title Section title
      */
     public void printSectionHeading(String title) {
-        System.out.println("\n---- " + title + " ----");
+        log.info("\n---- {} ----", title);
     }
 
     /**
@@ -190,7 +192,7 @@ public class BenchmarkReporter {
         // First add predefined stages in order
         for (Stage stage : Stage.values()) {
             if (elapsedTimes.containsKey(stage.name())) {
-                report.append(String.format("%-30s: %8d ms\n",
+                report.append(String.format("%-30s: %8d ms%n",
                         stage.getDisplayName(), elapsedTimes.get(stage.name())));
             }
         }
@@ -198,7 +200,7 @@ public class BenchmarkReporter {
         // Then add any custom timing metrics
         for (Map.Entry<String, Long> entry : elapsedTimes.entrySet()) {
             if (!isStageEnum(entry.getKey())) {
-                report.append(String.format("%-30s: %8d ms\n", entry.getKey(), entry.getValue()));
+                report.append(String.format("%-30s: %8d ms%n", entry.getKey(), entry.getValue()));
             }
         }
 
@@ -208,20 +210,20 @@ public class BenchmarkReporter {
             report.append("------------------------------------------------------------\n");
 
             for (Map.Entry<String, Object> entry : metrics.entrySet()) {
-                report.append(String.format("%-30s: %s\n", entry.getKey(), entry.getValue()));
+                report.append(String.format("%-30s: %s%n", entry.getKey(), entry.getValue()));
             }
         }
 
         // Print report to console
-        System.out.println(report.toString());
+        log.info("\n{}", report.toString());
 
         // Write report to file if enabled
         if (writeToFile && outputFilePath != null) {
             try (PrintWriter writer = new PrintWriter(new FileWriter(outputFilePath))) {
                 writer.print(report.toString());
-                System.out.println("Benchmark report written to: " + outputFilePath);
+                log.info("Benchmark report written to: {}", outputFilePath);
             } catch (IOException e) {
-                System.err.println("Error writing benchmark report to file: " + e.getMessage());
+                log.error("Error writing benchmark report to file: {}", e.getMessage());
             }
         }
     }
@@ -236,25 +238,5 @@ public class BenchmarkReporter {
             }
         }
         return false;
-    }
-
-    /**
-     * Get the elapsed time for a specific operation
-     *
-     * @param key Identifier for the operation
-     * @return Elapsed time in milliseconds, or -1 if not found
-     */
-    public long getElapsedTime(String key) {
-        return elapsedTimes.getOrDefault(key, -1L);
-    }
-
-    /**
-     * Get the elapsed time for a predefined benchmark stage
-     *
-     * @param stage The benchmark stage
-     * @return Elapsed time in milliseconds, or -1 if not found
-     */
-    public long getElapsedTime(Stage stage) {
-        return getElapsedTime(stage.name());
     }
 }

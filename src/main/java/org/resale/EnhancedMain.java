@@ -7,6 +7,8 @@ import java.io.PrintWriter;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * Enhanced Main.java
  *
@@ -19,6 +21,7 @@ import java.util.concurrent.TimeUnit;
  * - Command line options for customization
  * - Corrected year mapping for matriculation numbers
  */
+@Slf4j
 public class EnhancedMain {
     // Configuration constants
     private static final long MIN_MEMORY_FOR_STANDARD = 2L * 1024 * 1024 * 1024; // 2GB
@@ -45,23 +48,23 @@ public class EnhancedMain {
             boolean useMemoryMapping = shouldUseMemoryMapping();
 
             // Log configuration options
-            System.out.println("Configuration:");
-            System.out.println("  Input file: " + options.filepath);
-            System.out.println("  Memory mapping: " + (useMemoryMapping ? "Enabled" : "Disabled"));
-            System.out.println("  Available processors: " + Runtime.getRuntime().availableProcessors());
-            System.out.println("  Max memory: " +
-                    (Runtime.getRuntime().maxMemory() / (1024 * 1024)) + " MB");
+            log.info("Configuration:");
+            log.info("  Input file: {}", options.filepath);
+            log.info("  Memory mapping: {}", (useMemoryMapping ? "Enabled" : "Disabled"));
+            log.info("  Available processors: {}", Runtime.getRuntime().availableProcessors());
+            log.info("  Max memory: {} MB",
+                    (Runtime.getRuntime().maxMemory() / (1024 * 1024)));
 
-            System.out.println("\nLoading data...");
+            log.info("\nLoading data...");
             store.loadData(options.filepath, useMemoryMapping);
 
             // Compress data if requested
             if (options.useCompression) {
-                System.out.println("Compressing data...");
+                log.info("Compressing data...");
                 store.compressData();
             }
 
-            System.out.println("Data loaded: " + store.getTotalRows() + " records");
+            log.info("Data loaded: {} records", store.getTotalRows());
 
             // Format dates for query
             String startDate = String.format("%d-%02d", options.year, options.startMonth);
@@ -75,8 +78,9 @@ public class EnhancedMain {
 
             // Create output directory if it doesn't exist
             File resultDir = new File("result");
-            if (!resultDir.exists()) {
-                resultDir.mkdirs();
+            if (!resultDir.exists() && !resultDir.mkdirs()) {
+                log.error("Failed to create result directory: {}", resultDir.getAbsolutePath());
+                return;
             }
 
             // Create output file
@@ -85,10 +89,10 @@ public class EnhancedMain {
                 // Write CSV header
                 writer.println("Year,Month,Town,Category,Value");
 
-                System.out.println("\nPerforming query for:");
-                System.out.println("  Town: " + options.targetTown);
-                System.out.println("  Date range: " + startDate + " to " + endDate);
-                System.out.println("  Minimum area: " + options.minArea + " sqm");
+                log.info("\nPerforming query for:");
+                log.info("  Town: {}", options.targetTown);
+                log.info("  Date range: {} to {}", startDate, endDate);
+                log.info("  Minimum area: {} sqm", options.minArea);
 
                 // Find matching indices for the given criteria
                 long queryStartTime = System.nanoTime();
@@ -99,12 +103,12 @@ public class EnhancedMain {
                         options.minArea);
                 long queryEndTime = System.nanoTime();
 
-                System.out.println("Query completed in " +
-                        TimeUnit.NANOSECONDS.toMillis(queryEndTime - queryStartTime) + " ms");
-                System.out.println("Found " + matchingIndices.size() + " matching records");
+                log.info("Query completed in {} ms",
+                        TimeUnit.NANOSECONDS.toMillis(queryEndTime - queryStartTime));
+                log.info("Found {} matching records", matchingIndices.size());
 
                 // Process each statistic type
-                System.out.println("\nCalculating statistics...");
+                log.info("\nCalculating statistics...");
                 for (StatisticType type : StatisticType.values()) {
                     long statStartTime = System.nanoTime();
                     QueryResult result = store.calculateStatistics(matchingIndices, type);
@@ -117,22 +121,22 @@ public class EnhancedMain {
                             type.getDisplayName(),
                             result.getValue());
 
-                    System.out.println("  " + type.getDisplayName() + ": " + result.getValue() +
-                            " (calculated in " + TimeUnit.NANOSECONDS.toMillis(statEndTime - statStartTime) + " ms)");
+                    log.info("  {}: {} (calculated in {} ms)",
+                            type.getDisplayName(),
+                            result.getValue(),
+                            TimeUnit.NANOSECONDS.toMillis(statEndTime - statStartTime));
                 }
             }
 
             long endTime = System.nanoTime();
-            System.out.println("\nAnalysis complete. Results written to " + outputFile);
-            System.out.println("Total execution time: " +
-                    TimeUnit.NANOSECONDS.toMillis(endTime - startTime) + " ms");
+            log.info("\nAnalysis complete. Results written to {}", outputFile);
+            log.info("Total execution time: {} ms",
+                    TimeUnit.NANOSECONDS.toMillis(endTime - startTime));
 
         } catch (IOException e) {
-            System.err.println("Error processing file: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error processing file: {}", e.getMessage());
         } catch (Exception e) {
-            System.err.println("Unexpected error: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Unexpected error: {}", e.getMessage());
         }
     }
 
@@ -157,7 +161,7 @@ public class EnhancedMain {
         options.minArea = 80.0;
 
         if (args.length < 1) {
-            System.out.println("Error: Matriculation number is required");
+            log.error("Error: Matriculation number is required");
             return null;
         }
 
@@ -170,11 +174,11 @@ public class EnhancedMain {
             int thirdLastDigit = Character.getNumericValue(options.matricNumber.charAt(options.matricNumber.length() - 4));
 
             // Print the extracted digits for verification
-            System.out.println("Matriculation number: " + options.matricNumber);
-            System.out.println("Extracted digits:");
-            System.out.println("  Last digit: " + lastDigit);
-            System.out.println("  Second last digit: " + secondLastDigit);
-            System.out.println("  Third last digit: " + thirdLastDigit);
+            log.info("Matriculation number: {}", options.matricNumber);
+            log.info("Extracted digits:");
+            log.info("  Last digit: {}", lastDigit);
+            log.info("  Second last digit: {}", secondLastDigit);
+            log.info("  Third last digit: {}", thirdLastDigit);
 
             // Determine year with corrected mapping
             if (lastDigit >= 0 && lastDigit <= 3) {
@@ -192,13 +196,13 @@ public class EnhancedMain {
             };
             options.targetTown = towns[thirdLastDigit];
 
-            System.out.println("\nQuery parameters:");
-            System.out.println("  Year: " + options.year);
-            System.out.println("  Month: " + options.startMonth);
-            System.out.println("  Town: " + options.targetTown);
+            log.info("\nQuery parameters:");
+            log.info("  Year: {}", options.year);
+            log.info("  Month: {}", options.startMonth);
+            log.info("  Town: {}", options.targetTown);
 
         } catch (Exception e) {
-            System.out.println("Error parsing matriculation number: " + e.getMessage());
+            log.error("Error parsing matriculation number: {}", e.getMessage());
             return null;
         }
 
@@ -214,11 +218,11 @@ public class EnhancedMain {
                 try {
                     options.minArea = Double.parseDouble(args[++i]);
                 } catch (NumberFormatException e) {
-                    System.out.println("Error: Invalid minimum area value");
+                    log.error("Error: Invalid minimum area value");
                     return null;
                 }
             } else {
-                System.out.println("Error: Unknown option: " + arg);
+                log.error("Error: Unknown option: {}", arg);
                 return null;
             }
         }
@@ -230,15 +234,15 @@ public class EnhancedMain {
      * Display usage information
      */
     private static void displayUsage() {
-        System.out.println("Usage: java EnhancedMain <matriculation_number> [options]");
-        System.out.println();
-        System.out.println("Options:");
-        System.out.println("  --file <filepath>    Specify the input CSV file path");
-        System.out.println("  --compress           Enable data compression");
-        System.out.println("  --min-area <value>   Specify the minimum floor area (default: 80.0)");
-        System.out.println();
-        System.out.println("Example:");
-        System.out.println("  java EnhancedMain U2211641C --compress");
+        log.info("Usage: java EnhancedMain <matriculation_number> [options]");
+        log.info("");
+        log.info("Options:");
+        log.info("  --file <filepath>    Specify the input CSV file path");
+        log.info("  --compress           Enable data compression");
+        log.info("  --min-area <value>   Specify the minimum floor area (default: 80.0)");
+        log.info("");
+        log.info("Example:");
+        log.info("  java EnhancedMain U2211641C --compress");
     }
 
     /**

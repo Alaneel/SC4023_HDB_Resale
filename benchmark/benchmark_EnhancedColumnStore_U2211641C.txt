@@ -1,35 +1,35 @@
 ============================================================
   BENCHMARK RESULTS: EnhancedColumnStore
-  Completed at: 2025-03-02 15:18:34
+  Completed at: 2025-03-02 15:57:44
 ============================================================
 
 TIMING RESULTS:
 ------------------------------------------------------------
 Initialization                :        0 ms
-Data Loading                  :      271 ms
-Index Building                :      115 ms
-Query Execution               :       11 ms
+Data Loading                  :      337 ms
+Index Building                :      161 ms
+Query Execution               :        9 ms
 Statistics Calculation        :        0 ms
-Total Execution               :      293 ms
-Town Bitmap Index             :       38 ms
+Total Execution               :      352 ms
+Town Bitmap Index             :       22 ms
 Convert Indices               :        0 ms
 Cache Result                  :        0 ms
 Floor Area Filter             :        0 ms
 Calculate Minimum Price per Square Meter:        0 ms
 Statistics Cache Lookup       :        0 ms
 Calculation                   :        0 ms
-Floor Area Range Index        :       23 ms
+Floor Area Range Index        :       30 ms
 Cache Lookup                  :        0 ms
-Bitmap Filtering              :        8 ms
-Month Range Index             :       52 ms
+Bitmap Filtering              :        6 ms
+Month Range Index             :      109 ms
 Calculate Standard Deviation of Price:        0 ms
 Town Filter                   :        0 ms
 Date Range Filter             :        5 ms
 Calculate Average Price       :        0 ms
-Index Building                :      116 ms
-Buffered Loading              :      154 ms
+Index Building                :      161 ms
+Buffered Loading              :      176 ms
 Collect Results               :        0 ms
-Calculate Minimum Price       :        1 ms
+Calculate Minimum Price       :        2 ms
 
 PERFORMANCE METRICS:
 ------------------------------------------------------------

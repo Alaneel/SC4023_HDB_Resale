@@ -1,5 +1,7 @@
 package org.resale;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -12,11 +14,12 @@ import java.util.List;
  * Processes command line arguments, coordinates data loading and analysis,
  * and generates output files with results.
  */
+@Slf4j
 public class Main {
     public static void main(String[] args) {
         // Validate command line arguments
         if (args.length != 1) {
-            System.out.println("Usage: java Main <matriculation_number>");
+            log.info("Usage: java Main <matriculation_number>");
             return;
         }
 
@@ -73,10 +76,10 @@ public class Main {
                 }
             }
 
-            System.out.println("Analysis complete. Results written to " + outputFile);
+            log.info("Analysis complete. Results written to {}", outputFile);
 
         } catch (IOException e) {
-            System.err.println("Error processing file: " + e.getMessage());
+            log.error("Error processing file: {}", e.getMessage());
         }
     }
 }
