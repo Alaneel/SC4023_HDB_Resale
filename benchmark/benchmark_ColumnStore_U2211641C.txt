@@ -1,0 +1,49 @@
+============================================================
+  BENCHMARK RESULTS: ColumnStore
+  Completed at: 2025-03-02 15:11:47
+============================================================
+
+TIMING RESULTS:
+------------------------------------------------------------
+Initialization                :        0 ms
+Data Loading                  :      171 ms
+Query Execution               :       31 ms
+Statistics Calculation        :        0 ms
+Total Execution               :      232 ms
+Calculate Minimum Price per Square Meter:        0 ms
+Calculate Average Price       :        0 ms
+Calculate Standard Deviation of Price:        0 ms
+Town Filter                   :       31 ms
+Calculate Minimum Price       :        1 ms
+
+PERFORMANCE METRICS:
+------------------------------------------------------------
+Matric Number                 : U2211641C
+Max Memory (MB)               : 8192
+Total Rows                    : 222833
+Unique Months                 : 121
+Average Price Records Processed: 125
+Minimum Price per Square Meter Calculation Time: 0 ms
+Minimum Price per Square Meter Records Processed: 125
+Rows Processed                : 200000
+Available Processors          : 12
+Standard Deviation of Price Calculation Time: 0 ms
+Month                         : 4
+Unique Towns                  : 26
+Start Date                    : 2021-04
+Min Area                      : 80.0
+Date Range Selectivity        : 1.91%
+Minimum Price Calculation Time: 1 ms
+Records Matching All Criteria : 125
+Target Town                   : PASIR RIS
+Area Filter Selectivity       : 96.15%
+Minimum Price Records Processed: 125
+Records Matching Town+Date    : 130
+Implementation Type           : ColumnStore
+Year                          : 2021
+End Date                      : 2021-05
+Average Price Calculation Time: 0 ms
+Records Matching Town         : 6794
+Input File                    : data/ResalePricesSingapore.csv
+Town Filter Selectivity       : 3.05%
+Standard Deviation of Price Records Processed: 125

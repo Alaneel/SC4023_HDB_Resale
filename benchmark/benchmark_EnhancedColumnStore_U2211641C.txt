@@ -1,0 +1,72 @@
+============================================================
+  BENCHMARK RESULTS: EnhancedColumnStore
+  Completed at: 2025-03-02 15:18:34
+============================================================
+
+TIMING RESULTS:
+------------------------------------------------------------
+Initialization                :        0 ms
+Data Loading                  :      271 ms
+Index Building                :      115 ms
+Query Execution               :       11 ms
+Statistics Calculation        :        0 ms
+Total Execution               :      293 ms
+Town Bitmap Index             :       38 ms
+Convert Indices               :        0 ms
+Cache Result                  :        0 ms
+Floor Area Filter             :        0 ms
+Calculate Minimum Price per Square Meter:        0 ms
+Statistics Cache Lookup       :        0 ms
+Calculation                   :        0 ms
+Floor Area Range Index        :       23 ms
+Cache Lookup                  :        0 ms
+Bitmap Filtering              :        8 ms
+Month Range Index             :       52 ms
+Calculate Standard Deviation of Price:        0 ms
+Town Filter                   :        0 ms
+Date Range Filter             :        5 ms
+Calculate Average Price       :        0 ms
+Index Building                :      116 ms
+Buffered Loading              :      154 ms
+Collect Results               :        0 ms
+Calculate Minimum Price       :        1 ms
+
+PERFORMANCE METRICS:
+------------------------------------------------------------
+Minimum Price                 : 408000.00
+Matric Number                 : U2211641C
+Max Memory (MB)               : 8192
+Total Rows                    : 222833
+Unique Months                 : 121
+Parallel Processing           : Disabled
+Area Filter Matches           : 125
+Rows Processed                : 200000
+Available Processors          : 12
+Month                         : 4
+Unique Towns                  : 26
+Start Date                    : 2021-04
+Month Range Index Size        : 121
+Floor Area Range Index Size   : 7
+Minimum Price per Square Meter: 3758.39
+Min Area                      : 80.0
+Town Matches                  : 6794
+Statistics Cache Hit          : No
+Final Result Count            : 125
+Target Town                   : PASIR RIS
+Records Processed             : 125
+Memory Mapping                : Disabled
+Standard Deviation of Price   : 109475.57
+Date Range Matches            : 130
+Average Price                 : 566531.41
+Cache Hit                     : No
+Area Filter Selectivity       : 96.15%
+Town Bitmap Index Size        : 26
+Date Range Filter Selectivity : 1.91%
+Implementation Type           : EnhancedColumnStore
+Year                          : 2021
+End Date                      : 2021-05
+Chunks Created                : 3
+Avg Rows Per Chunk            : 74277
+Query Parameters              : PASIR RIS|2021-04|2021-05|80.0
+Input File                    : data/ResalePricesSingapore.csv
+Town Filter Selectivity       : 3.05%
