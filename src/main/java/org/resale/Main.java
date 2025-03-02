@@ -29,7 +29,12 @@ public class Main {
         int thirdLastDigit = Character.getNumericValue(matricNumber.charAt(matricNumber.length() - 4));
 
         // Determine year and months
-        int year = 2010 + lastDigit;
+        int year;
+        if (lastDigit >= 0 && lastDigit <= 3) {
+            year = 2020 + lastDigit; // Maps 0,1,2,3 to 2020,2021,2022,2023
+        } else {
+            year = 2010 + lastDigit; // Maps 4,5,6,7,8,9 to 2014,2015,2016,2017,2018,2019
+        }
         int startMonth = secondLastDigit == 0 ? 10 : secondLastDigit;
 
         // Determine town based on third last digit
