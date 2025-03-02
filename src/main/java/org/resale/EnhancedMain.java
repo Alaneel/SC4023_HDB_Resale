@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
  * - Performance monitoring
  * - Multi-threaded execution
  * - Command line options for customization
+ * - Corrected year mapping for matriculation numbers
  */
 public class EnhancedMain {
     // Configuration constants
@@ -168,12 +169,20 @@ public class EnhancedMain {
             int secondLastDigit = Character.getNumericValue(options.matricNumber.charAt(options.matricNumber.length() - 3));
             int thirdLastDigit = Character.getNumericValue(options.matricNumber.charAt(options.matricNumber.length() - 4));
 
-            // Determine year and months
+            // Print the extracted digits for verification
+            System.out.println("Matriculation number: " + options.matricNumber);
+            System.out.println("Extracted digits:");
+            System.out.println("  Last digit: " + lastDigit);
+            System.out.println("  Second last digit: " + secondLastDigit);
+            System.out.println("  Third last digit: " + thirdLastDigit);
+
+            // Determine year with corrected mapping
             if (lastDigit >= 0 && lastDigit <= 3) {
                 options.year = 2020 + lastDigit; // Maps 0,1,2,3 to 2020,2021,2022,2023
             } else {
                 options.year = 2010 + lastDigit; // Maps 4,5,6,7,8,9 to 2014,2015,2016,2017,2018,2019
             }
+
             options.startMonth = secondLastDigit == 0 ? 10 : secondLastDigit;
 
             // Determine town based on third last digit
@@ -182,6 +191,12 @@ public class EnhancedMain {
                     "JURONG WEST", "PASIR RIS", "TAMPINES", "WOODLANDS", "YISHUN"
             };
             options.targetTown = towns[thirdLastDigit];
+
+            System.out.println("\nQuery parameters:");
+            System.out.println("  Year: " + options.year);
+            System.out.println("  Month: " + options.startMonth);
+            System.out.println("  Town: " + options.targetTown);
+
         } catch (Exception e) {
             System.out.println("Error parsing matriculation number: " + e.getMessage());
             return null;
