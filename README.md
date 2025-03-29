@@ -1,47 +1,37 @@
-# Enhanced HDB Resale Price Analysis System with Unified Benchmarking
+# HDB Resale Price Analysis System
 
 ## Background
 
-This project implements an optimized column-oriented data management system for analyzing Housing and Development Board (HDB) resale flat transactions in Singapore from 2014 to 2023. The system processes historical transaction records to compute various statistics including minimum price, average price, standard deviation of price, and minimum price per square meter for flats meeting specific criteria.
+This project implements a column-oriented data management system for analyzing Housing and Development Board (HDB) resale flat transactions in Singapore from 2014 to 2023. The system processes historical transaction records to compute various statistics including minimum price, average price, standard deviation of price, and minimum price per square meter for flats meeting specific criteria.
 
 The analysis is performed based on individual matriculation numbers, where different digits in the matriculation number determine the parameters for data analysis:
 - Last digit: Determines the year (2010 + last digit or 2020 + last digit for digits 0-3)
 - Second last digit: Determines the starting month (0 represents October)
 - Third last digit: Determines the target town according to a predefined mapping
 
-## Enhanced Features
+## Project Features
 
-This enhanced version includes several optimizations to improve performance and scalability:
+This implementation offers several key features:
 
-1. **Memory Optimization**
-   - Chunked data processing to handle large datasets efficiently
-   - Memory-mapped file support for datasets larger than available RAM
-   - Dictionary encoding for string columns to reduce memory footprint
+1. **Column-Oriented Storage**
+   - Data stored by columns rather than rows for efficient queries
+   - Improved query performance by only scanning relevant columns
+   - Better cache locality with similar values stored together
 
-2. **Query Performance**
-   - Bitmap indexing for fast filtering operations
-   - Range indexes for efficient date and numeric filtering
-   - Optimized data structures for common query patterns
+2. **Statistical Analysis**
+   - Calculates minimum price of matching flats
+   - Computes average price across filtered data
+   - Determines standard deviation of prices
+   - Identifies minimum price per square meter
 
-3. **Computational Efficiency**
-   - Parallel processing for statistical calculations
-   - Result caching with LRU eviction policy
-   - Optional data compression
-
-4. **Unified Benchmarking Framework**
-   - Standardized performance measurement across implementations
-   - Detailed metrics collection at each processing stage
-   - Consistent reporting format for direct comparisons
-   - Support for both console and file-based reporting
-
-5. **Usability Improvements**
-   - Automatic detection of optimal processing strategy based on system resources
-   - Enhanced command-line interface with additional options
-   - Detailed performance monitoring and reporting
+3. **Query Processing**
+   - Efficiently filters data based on town, date range, and minimum area
+   - Processes large datasets through optimized column scanning
+   - Handles edge cases such as empty result sets
 
 ## Project Structure
 
-The enhanced project follows a standard Maven directory structure:
+The project follows a standard Maven directory structure:
 
 ```
 .
@@ -50,21 +40,15 @@ The enhanced project follows a standard Maven directory structure:
 ├── pom.xml                     # Maven configuration file
 ├── result                      # Output directory for analysis results
 │   └── ScanResult_*.csv
-├── benchmark                   # Output directory for benchmark reports
-│   └── benchmark_*.txt
 └── src                         # Source code directory
     └── main
         └── java
             └── org
                 └── resale
-                    ├── BenchmarkReporter.java   # Unified benchmarking framework
-                    ├── ColumnStore.java         # Original implementation
-                    ├── EnhancedColumnStore.java # Optimized implementation
-                    ├── Main.java                # Original entry point
-                    ├── EnhancedMain.java        # Enhanced entry point
-                    ├── UnifiedMain.java         # Unified benchmark entry point
-                    ├── QueryResult.java         # Query result handling
-                    └── StatisticType.java       # Statistical calculation types
+                    ├── ColumnStore.java        # Column-oriented storage implementation
+                    ├── Main.java               # Entry point
+                    ├── QueryResult.java        # Query result handling
+                    └── StatisticType.java      # Statistical calculation types
 ```
 
 ## Technologies Used
@@ -74,16 +58,13 @@ The project utilizes several key technologies:
 1. Java 17: The primary programming language
 2. Maven: Build automation and dependency management
 3. Lombok: Reduces boilerplate code through annotations
-4. Java NIO: For memory-mapped file operations
-5. Java Stream API: For parallel processing
-6. Java BitSet: For efficient bitmap indexing
+4. Java Stream API: For concise statistical calculations
 
 ## Prerequisites
 
 - Java Development Kit (JDK) 17 or higher
 - Apache Maven 3.6 or higher
 - Lombok plugin installed in your IDE
-- Minimum 2GB RAM recommended (can operate with less using memory mapping)
 
 ## Building the Project
 
@@ -93,65 +74,22 @@ To build the project, execute the following command in the project root director
 mvn clean package
 ```
 
-## Running the Enhanced Analysis
+## Running the Analysis
 
-To run the enhanced analysis with your matriculation number, use the following Maven command:
+To run the analysis with your matriculation number, use the following Maven command:
 
 ```bash
-mvn exec:java -Dexec.mainClass="org.resale.EnhancedMain" -Dexec.arguments="YOUR_MATRIC_NUMBER"
+mvn exec:java -Dexec.mainClass="org.resale.Main" -Dexec.arguments="YOUR_MATRIC_NUMBER"
 ```
 
 For example:
 ```bash
-mvn exec:java -Dexec.mainClass="org.resale.EnhancedMain" -Dexec.arguments="U2211641C"
+mvn exec:java -Dexec.mainClass="org.resale.Main" -Dexec.arguments="U2211641C"
 ```
-
-### Additional Command Line Options
-
-The enhanced version supports additional command line options:
-
-```bash
-# Use a custom input file
-mvn exec:java -Dexec.mainClass="org.resale.EnhancedMain" -Dexec.arguments="U2211641C --file custom/path/data.csv"
-
-# Enable data compression
-mvn exec:java -Dexec.mainClass="org.resale.EnhancedMain" -Dexec.arguments="U2211641C --compress"
-
-# Specify a custom minimum area
-mvn exec:java -Dexec.mainClass="org.resale.EnhancedMain" -Dexec.arguments="U2211641C --min-area 90.0"
-```
-
-## Running Benchmarks with the Unified Framework
-
-The unified benchmarking framework allows for consistent performance measurement across both the original and enhanced implementations. To run benchmarks, use the UnifiedMain class:
-
-```bash
-# Run benchmark on the original ColumnStore implementation
-mvn exec:java -Dexec.mainClass="org.resale.UnifiedMain" -Dexec.arguments="ColumnStore,YOUR_MATRIC_NUMBER"
-
-# Run benchmark on the enhanced implementation
-mvn exec:java -Dexec.mainClass="org.resale.UnifiedMain" -Dexec.arguments="EnhancedColumnStore,YOUR_MATRIC_NUMBER"
-
-# Run enhanced implementation with compression
-mvn exec:java -Dexec.mainClass="org.resale.UnifiedMain" -Dexec.arguments="EnhancedColumnStore,YOUR_MATRIC_NUMBER --compress"
-```
-
-Benchmark reports are generated in the `benchmark` directory with detailed timing and performance metrics for each implementation stage.
-
-## Performance Comparison
-
-The enhanced implementation significantly outperforms the original in terms of both speed and memory efficiency:
-
-- **Memory usage**: Reduced by up to 70% for large datasets
-- **Query performance**: Up to 100x faster for town filtering operations
-- **Statistical calculations**: 3-8x faster using parallel processing
-- **Large dataset handling**: Can process datasets 10x larger than the original implementation with the same hardware
-
-For detailed performance analysis, refer to the included Performance Optimization Report.
 
 ## Output
 
-The program generates a CSV file named `ScanResult_<MatricNum>.csv` in the `result` directory, identical to the original implementation for compatibility. The output file contains the following columns:
+The program generates a CSV file named `ScanResult_<MatricNum>.csv` in the `result` directory. The output file contains the following columns:
 - Year
 - Month
 - Town
@@ -174,22 +112,11 @@ The third last digit of the matriculation number maps to towns as follows:
 - 8: WOODLANDS
 - 9: YISHUN
 
-## Development Notes
-
-The enhanced project maintains full compatibility with the original while adding significant performance improvements. The original implementation is preserved for reference and comparison.
-
-Key implementation details:
-
-1. **Bitmap indexing** uses Java's BitSet class for efficient filtering
-2. **Dictionary encoding** replaces string values with integer codes to reduce memory usage
-3. **Parallel processing** leverages Java's Stream API for multi-threaded calculations
-4. **Memory mapping** uses Java NIO's FileChannel and MappedByteBuffer for efficient file access
-5. **Unified benchmarking** provides standardized performance measurement across implementations
-
 ## Error Handling
 
-The enhanced program includes robust error handling with detailed error messages and graceful degradation in resource-constrained environments:
+The program includes basic error handling for common scenarios:
+- Invalid input file path
+- Malformed data in CSV
+- Invalid matriculation number format
 
-- Automatically falls back to memory mapping when RAM is limited
-- Provides detailed error messages for common failure scenarios
-- Implements proper resource cleanup to prevent memory leaks
+Error messages are logged to help diagnose issues during execution.

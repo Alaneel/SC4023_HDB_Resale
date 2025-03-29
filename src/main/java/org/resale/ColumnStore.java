@@ -12,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
  * This class implements a column-oriented storage system for HDB resale flat data.
  * It provides functionality to load, store, and analyze HDB resale transactions
  * in a column-oriented manner for efficient querying and analysis.
- * This version uses the unified benchmarking framework.
  */
 @Slf4j
 class ColumnStore {
@@ -21,9 +20,6 @@ class ColumnStore {
     private final List<String> towns;       // Town names
     private final List<Double> floorAreas;  // Floor areas in square meters
     private final List<Double> resalePrices;// Resale prices in SGD
-
-    // Benchmarking instance
-    private final BenchmarkReporter benchmark;
 
     // Metadata
     private int totalRows = 0;
@@ -34,22 +30,10 @@ class ColumnStore {
      * Constructor initializes empty column arrays for data storage.
      */
     public ColumnStore() {
-        this(new BenchmarkReporter("ColumnStore"));
-    }
-
-    /**
-     * Constructor with custom benchmark reporter
-     */
-    public ColumnStore(BenchmarkReporter benchmark) {
-        this.benchmark = benchmark;
-        benchmark.startTiming(BenchmarkReporter.Stage.INITIALIZATION);
-
         this.months = new ArrayList<>();
         this.towns = new ArrayList<>();
         this.floorAreas = new ArrayList<>();
         this.resalePrices = new ArrayList<>();
-
-        benchmark.stopTiming(BenchmarkReporter.Stage.INITIALIZATION);
     }
 
     /**
@@ -60,7 +44,6 @@ class ColumnStore {
      * @throws IOException If there are issues reading the file
      */
     public void loadData(String filepath) throws IOException {
-        benchmark.startTiming(BenchmarkReporter.Stage.DATA_LOADING);
         int lineCount = 0;
 
         try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
@@ -79,7 +62,7 @@ class ColumnStore {
                 floorAreas.add(Double.parseDouble(values[6].trim()));
                 resalePrices.add(Double.parseDouble(values[9].trim()));
 
-                // Update metadata for benchmarking
+                // Update metadata for analysis
                 totalRows++;
                 townCounts.put(values[1].trim(), townCounts.getOrDefault(values[1].trim(), 0) + 1);
                 monthCounts.put(values[0].trim(), monthCounts.getOrDefault(values[0].trim(), 0) + 1);
@@ -87,36 +70,12 @@ class ColumnStore {
                 // Print progress for large files
                 lineCount++;
                 if (lineCount % batchSize == 0) {
-                    benchmark.recordMetric("Rows Processed", lineCount);
+                    log.info("Processed {} rows", lineCount);
                 }
             }
         }
 
-        // Record data loading metrics
-        benchmark.recordMetric("Total Rows", totalRows);
-        benchmark.recordMetric("Unique Towns", townCounts.size());
-        benchmark.recordMetric("Unique Months", monthCounts.size());
-
-        long loadingTime = benchmark.stopTiming(BenchmarkReporter.Stage.DATA_LOADING);
-        log.info("Data loading completed in {} ms", loadingTime);
-
-        // Print distribution statistics for debugging
-        benchmark.printSectionHeading("Town Distribution (Top 5)");
-        townCounts.entrySet().stream()
-                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                .limit(5)
-                .forEach(e -> log.info("  {}: {} records", e.getKey(), e.getValue()));
-
-        benchmark.printSectionHeading("Year Distribution");
-        Map<String, Integer> yearCounts = new HashMap<>();
-        for (Map.Entry<String, Integer> entry : monthCounts.entrySet()) {
-            String year = entry.getKey().substring(0, 4);
-            yearCounts.put(year, yearCounts.getOrDefault(year, 0) + entry.getValue());
-        }
-
-        yearCounts.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(e -> log.info("  {}: {} records", e.getKey(), e.getValue()));
+        log.info("Data loading completed. Total rows: {}", totalRows);
     }
 
     /**
@@ -131,10 +90,7 @@ class ColumnStore {
     public List<Integer> findMatchingIndices(String targetTown, String startMonth, String endMonth, double minArea) {
         List<Integer> matchingIndices = new ArrayList<>();
 
-        benchmark.startTiming(BenchmarkReporter.Stage.QUERY_EXECUTION);
-        benchmark.startTiming("Town Filter");
-
-        // Log query parameters for benchmarking
+        // Log query parameters
         log.info("Query parameters:");
         log.info("  Target town: {}", targetTown);
         log.info("  Date range: {} to {}", startMonth, endMonth);
@@ -144,44 +100,22 @@ class ColumnStore {
         YearMonth start = YearMonth.parse(startMonth);
         YearMonth end = YearMonth.parse(endMonth);
 
-        // Track filter performance
-        int townMatches = 0;
-        int dateRangeMatches = 0;
-        int areaMatches = 0;
-
         // Scan through all records
         for (int i = 0; i < months.size(); i++) {
             // Apply town filter
             if (towns.get(i).equals(targetTown)) {
-                townMatches++;
-
                 // Apply date range filter
                 YearMonth current = YearMonth.parse(months.get(i));
                 if (!current.isBefore(start) && !current.isAfter(end)) {
-                    dateRangeMatches++;
-
                     // Apply floor area filter
                     if (floorAreas.get(i) >= minArea) {
-                        areaMatches++;
                         matchingIndices.add(i);
                     }
                 }
             }
         }
 
-
-        // Record filter performance metrics
-        final String PERCENTAGE_FORMAT = "%.2f%%";
-        benchmark.recordMetric("Records Matching Town", townMatches);
-        benchmark.recordMetric("Records Matching Town+Date", dateRangeMatches);
-        benchmark.recordMetric("Records Matching All Criteria", areaMatches);
-        benchmark.recordMetric("Town Filter Selectivity",
-                String.format(PERCENTAGE_FORMAT, (townMatches * 100.0 / totalRows)));
-        benchmark.recordMetric("Date Range Selectivity",
-                String.format(PERCENTAGE_FORMAT, (dateRangeMatches * 100.0 / townMatches)));
-        benchmark.recordMetric("Area Filter Selectivity",
-                String.format(PERCENTAGE_FORMAT, (areaMatches * 100.0 / dateRangeMatches)));
-
+        log.info("Found {} matching records", matchingIndices.size());
         return matchingIndices;
     }
 
@@ -197,10 +131,6 @@ class ColumnStore {
         if (indices.isEmpty()) {
             return new QueryResult("No result");
         }
-
-        String opName = "Calculate " + type.getDisplayName();
-        benchmark.startTiming(opName);
-        benchmark.startTiming(BenchmarkReporter.Stage.STATISTICS_CALCULATION);
 
         double result;
         switch (type) {
@@ -248,13 +178,6 @@ class ColumnStore {
             default:
                 throw new IllegalArgumentException("Unknown statistic type");
         }
-
-        benchmark.stopTiming(BenchmarkReporter.Stage.STATISTICS_CALCULATION);
-        long calcTime = benchmark.stopTiming(opName);
-
-        // Record statistics calculation metrics
-        benchmark.recordMetric(type.getDisplayName() + " Calculation Time", calcTime + " ms");
-        benchmark.recordMetric(type.getDisplayName() + " Records Processed", indices.size());
 
         // Format result to 2 decimal places
         return new QueryResult(String.format("%.2f", result));
