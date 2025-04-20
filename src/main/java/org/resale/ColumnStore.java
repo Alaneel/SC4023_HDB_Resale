@@ -125,9 +125,12 @@ class ColumnStore {
      * @param indices List of indices to calculate statistics for
      * @param type Type of statistic to calculate
      * @return QueryResult containing the calculated statistic
+     *
+     * Time Complexity: O(n) where n is the number of matching indices
+     * Space Complexity: O(1) - constant additional space used
      */
     public QueryResult calculateStatistics(List<Integer> indices, StatisticType type) {
-        // Return "No result" if no matching records found
+        // Handle edge case: empty result set
         if (indices.isEmpty()) {
             return new QueryResult("No result");
         }
@@ -157,7 +160,8 @@ class ColumnStore {
                         .average()
                         .orElse(0.0);
 
-                // Calculate standard deviation
+                // Calculate standard deviation using the formula:
+                // σ = sqrt(Σ(x - μ)²/n) where μ is the mean and n is sample size
                 result = Math.sqrt(indices.stream()
                         .mapToDouble(i -> {
                             double diff = resalePrices.get(i) - mean;

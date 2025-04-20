@@ -16,15 +16,30 @@ import java.util.List;
  */
 @Slf4j
 public class Main {
+    /**
+     * Main entry point for the HDB Resale Price Analysis System.
+     * Processes command line arguments, coordinates data loading and analysis,
+     * and generates output files with results.
+     *
+     * @param args Command-line arguments, expects a single argument: matriculation number
+     *             Format requirements: input must be valid NTU matriculation number
+     *             with at least 4 digits at the end for parameter extraction
+     */
     public static void main(String[] args) {
+        final String FILEPATH = "data/ResalePricesSingapore.csv";
+
         // Validate command line arguments
         if (args.length != 1) {
             log.info("Usage: java Main <matriculation_number>");
             return;
         }
 
-        final String FILEPATH = "data/ResalePricesSingapore.csv";
+        // Input validation - ensure matriculation number has sufficient digits
         String matricNumber = args[0];
+        if (matricNumber.length() < 4) {
+            log.error("Invalid matriculation number format: Must contain at least 4 digits");
+            return;
+        }
 
         // Parse matriculation number for query parameters
         int lastDigit = Character.getNumericValue(matricNumber.charAt(matricNumber.length() - 2));
@@ -50,13 +65,18 @@ public class Main {
         try {
             // Initialize and load data
             ColumnStore store = new ColumnStore();
+            log.info("Initializing data store...");
             store.loadData(FILEPATH);
 
             // Format dates for query
             String startDate = String.format("%d-%02d", year, startMonth);
-            String endDate = String.format("%d-%02d", year, startMonth == 12 ? 1 : startMonth + 1);
+            // Handle edge case: year boundary for December->January transitions
+            String endDate;
             if (startMonth == 12) {
                 endDate = String.format("%d-01", year + 1);
+                log.info("Year boundary detected: End date crosses to following year");
+            } else {
+                endDate = String.format("%d-%02d", year, startMonth + 1);
             }
 
             // Create output file
